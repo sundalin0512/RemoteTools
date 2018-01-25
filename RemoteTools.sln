@@ -1,0 +1,63 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.27130.2024
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RemoteToolClient", "RemoteToolClient\RemoteToolClient.vcxproj", "{8DD19A06-2DB9-40BD-97EA-315AA08F320B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680} = {8D236E1F-307A-4F94-84E2-5DF177B4A680}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "RemoteToolServer", "RemoteToolServer\RemoteToolServer.vcxproj", "{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}"
+	ProjectSection(ProjectDependencies) = postProject
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680} = {8D236E1F-307A-4F94-84E2-5DF177B4A680}
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Socket", "Socket\Socket.vcxproj", "{8D236E1F-307A-4F94-84E2-5DF177B4A680}"
+EndProject
+Global
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
+	EndGlobalSection
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|x64 = Debug|x64
+		Debug|x86 = Debug|x86
+		Release|x64 = Release|x64
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Debug|x64.ActiveCfg = Debug|x64
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Debug|x64.Build.0 = Debug|x64
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Debug|x86.ActiveCfg = Debug|Win32
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Debug|x86.Build.0 = Debug|Win32
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Release|x64.ActiveCfg = Release|x64
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Release|x64.Build.0 = Release|x64
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Release|x86.ActiveCfg = Release|Win32
+		{8DD19A06-2DB9-40BD-97EA-315AA08F320B}.Release|x86.Build.0 = Release|Win32
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Debug|x64.ActiveCfg = Debug|x64
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Debug|x64.Build.0 = Debug|x64
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Debug|x86.ActiveCfg = Debug|Win32
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Debug|x86.Build.0 = Debug|Win32
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Release|x64.ActiveCfg = Release|x64
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Release|x64.Build.0 = Release|x64
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Release|x86.ActiveCfg = Release|Win32
+		{A443B973-ADFD-4F4D-B653-A28D7DF93DA5}.Release|x86.Build.0 = Release|Win32
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Debug|x64.ActiveCfg = Debug|x64
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Debug|x64.Build.0 = Debug|x64
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Debug|x86.ActiveCfg = Debug|Win32
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Debug|x86.Build.0 = Debug|Win32
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Release|x64.ActiveCfg = Release|x64
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Release|x64.Build.0 = Release|x64
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Release|x86.ActiveCfg = Release|Win32
+		{8D236E1F-307A-4F94-84E2-5DF177B4A680}.Release|x86.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {86BE2B3E-2D3D-4378-BA2D-DA8F8C54C94C}
+	EndGlobalSection
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
+	EndGlobalSection
+EndGlobal
