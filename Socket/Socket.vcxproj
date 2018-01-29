@@ -158,6 +158,7 @@
     <ClInclude Include="targetver.h" />
     <ClInclude Include="TcpClient.h" />
     <ClInclude Include="TcpServer.h" />
+    <ClInclude Include="TcpSocketManager.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Socket.cpp" />
@@ -169,6 +170,7 @@
     </ClCompile>
     <ClCompile Include="TcpClient.cpp" />
     <ClCompile Include="TcpServer.cpp" />
+    <ClCompile Include="TcpSocketManager.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

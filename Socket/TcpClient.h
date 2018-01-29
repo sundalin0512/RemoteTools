@@ -27,14 +27,16 @@ class TcpClient : public Socket
 
 	void SetReceiveCallback(ReceiveCallback callback, void* uesrParam);
 	//bool Receive(MessageData& message);
+	DWORD  Receive();
 
+	DWORD Send();
 	protected:
 
 	void Init();
 
-	static DWORD __stdcall SendThreadProc(LPVOID lpParameter);
+	
 
-	static DWORD __stdcall ReceiveThreadProc(LPVOID lpParameter);
+	
 
 	void _Send(const char* data, size_t length);
 
@@ -54,5 +56,9 @@ class TcpClient : public Socket
 	bool m_isValid;
 	ReceiveCallback m_receiveCallback = nullptr;
 	void* m_userParam;
+
+	const size_t m_recvBufferSize = 1024 * 1024;
+	char *m_recvBuffer = new char[m_recvBufferSize];
+	std::vector<char> m_recvDataQueue;
 };
 

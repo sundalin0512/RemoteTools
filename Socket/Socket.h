@@ -44,6 +44,11 @@ class Socket
 
 	unsigned short GetPort();
 
+	operator SOCKET()
+	{
+		return m_socket;
+	}
+
 	protected:
 	Socket();
 
