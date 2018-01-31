@@ -21,4 +21,10 @@ protected:
 
 	DECLARE_MESSAGE_MAP()
 	public:
+	afx_msg void OnAcceleratorSaveBMP();
+	virtual BOOL OnInitDialog();
+	virtual BOOL PreTranslateMessage(MSG* pMsg);
+	HACCEL m_hAccel;
+	CRITICAL_SECTION m_cs;
+	bool m_isSaveBMP = false;
 };

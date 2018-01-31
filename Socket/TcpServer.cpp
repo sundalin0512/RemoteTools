@@ -15,8 +15,5 @@ TcpServer::~TcpServer()
 
 TcpClient* TcpServer::Accept()
 {
-	auto ret = new TcpClient(Socket::Accept());
-	if (m_acceptCallback != nullptr)
-		m_acceptCallback(ret, m_userParam);
-	return ret;
+	return new TcpClient(Socket::Accept());
 }

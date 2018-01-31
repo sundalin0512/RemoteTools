@@ -28,6 +28,8 @@ TcpClient::~TcpClient()
 void TcpClient::Init()
 {
 	m_isValid = true;
+	m_hSendThread = CreateThread(NULL, 0, SendThreadProc, this, 0, NULL);
+	m_hReceiveThread = CreateThread(NULL, 4*1024*1024, ReceiveThreadProc, this, 0, NULL);
 }
 
 void TcpClient::Create(Socket sock)
@@ -63,6 +65,17 @@ void TcpClient::Send(MessageType messageType, std::wstring messageData)
 	Send(message);
 }
 
+void TcpClient::Send(MessageType messageType, size_t someinfo, std::wstring messageData)
+{
+	MessageData message;
+	message.type = messageType;
+	message.length = messageData.length() * 2 + sizeof(size_t);
+	message.data = new char[message.length * 2 + sizeof(size_t)];
+	memcpy_s(message.data, sizeof(size_t), &someinfo, sizeof(size_t));
+	messageData._Copy_s((wchar_t*)(message.data + sizeof(size_t)), messageData.length() * 2, messageData.length() * 2);
+	Send(message);
+}
+
 void TcpClient::SetReceiveCallback(ReceiveCallback callback, void* uesrParam)
 {
 	m_receiveCallback = callback;
@@ -83,68 +96,79 @@ void TcpClient::SetReceiveCallback(ReceiveCallback callback, void* uesrParam)
 //	return false;
 //}
 
-DWORD TcpClient::Send()
+DWORD TcpClient::SendThreadProc(LPVOID lpParameter)
 {
+	TcpClient* thisClient = (TcpClient*)lpParameter;
 	char* buffer = nullptr;
 	size_t length = 0;
-
-	EnterCriticalSection(&this->m_csSendQueue);
-	bool isEmpty = this->m_sendQueue.empty();
-	if (!isEmpty)
+	while (thisClient->m_isValid)
 	{
-		Socket::MessageData front = this->m_sendQueue.front();
-		length = front.length + sizeof(size_t) + sizeof(Socket::MessageType);
-		buffer = new char[length];
-		memcpy_s(buffer, sizeof(size_t), &front.length, sizeof(size_t));
-		memcpy_s(buffer + sizeof(size_t), sizeof(Socket::MessageType), &front.type, sizeof(Socket::MessageType));
-		if (front.data != nullptr)
+		EnterCriticalSection(&thisClient->m_csSendQueue);
+		bool isEmpty = thisClient->m_sendQueue.empty();
+		if (!isEmpty)
 		{
-			memcpy_s(buffer + sizeof(size_t) + sizeof(Socket::MessageType), front.length, front.data, front.length);
+			Socket::MessageData front = thisClient->m_sendQueue.front();
+			length = front.length + sizeof(size_t) + sizeof(Socket::MessageType);
+			buffer = new char[length];
+			memcpy_s(buffer, sizeof(size_t), &front.length, sizeof(size_t));
+			memcpy_s(buffer + sizeof(size_t), sizeof(Socket::MessageType), &front.type, sizeof(Socket::MessageType));
+			if (front.data != nullptr)
+			{
+				memcpy_s(buffer + sizeof(size_t) + sizeof(Socket::MessageType), front.length, front.data, front.length);
+			}
+			delete front.data;
+			thisClient->m_sendQueue.pop();
 		}
-		delete front.data;
-		this->m_sendQueue.pop();
-	}
-	LeaveCriticalSection(&this->m_csSendQueue);
-	if (!isEmpty)
-	{
-		this->_Send(buffer, length);
-		delete[] buffer;
-	}
-
-
-	return 0;
-}
-
-DWORD TcpClient::Receive()
-{
-
-	int length = m_recvBufferSize;
-	if (!this->_Receive(m_recvBuffer, length))
-	{
-		return 0;
-	}
-	m_recvDataQueue.insert(m_recvDataQueue.end(), m_recvBuffer, m_recvBuffer + length);
-	while (m_recvDataQueue.size() > sizeof(size_t))
-	{
-		Socket::MessageData *last = new Socket::MessageData;
-		last->length = *(size_t*)&m_recvDataQueue[0];
-		if (last->length <= m_recvDataQueue.size() - sizeof(size_t) - sizeof(Socket::MessageType))
+		LeaveCriticalSection(&thisClient->m_csSendQueue);
+		if (!isEmpty)
 		{
-			m_recvDataQueue.erase(m_recvDataQueue.begin(), m_recvDataQueue.begin() + sizeof(size_t));
-			last->type = (Socket::MessageType)m_recvDataQueue[0];
-			m_recvDataQueue.erase(m_recvDataQueue.begin(), m_recvDataQueue.begin() + sizeof(Socket::MessageType));
-			last->data = new char[last->length];
-			std::move(m_recvDataQueue.begin(), m_recvDataQueue.begin() + last->length, last->data);
-			//(last.data, last.length, &dataQueue[0], last.length);
-			m_recvDataQueue.erase(m_recvDataQueue.begin(), m_recvDataQueue.begin() + last->length);
-			if (this->m_receiveCallback != nullptr)
-				this->m_receiveCallback(last, this->m_userParam);
-			delete[] last->data;
-			delete last;
+			thisClient->_Send(buffer, length);
+			delete [] buffer;
 		}
 		else
 		{
+			Sleep(10);
+		}
+	}
+	return 0;
+}
+
+DWORD TcpClient::ReceiveThreadProc(LPVOID lpParameter)
+{
+	TcpClient* thisClient = (TcpClient*)lpParameter;
+	const size_t bufferSize = 1024 * 1024;
+	char buffer[bufferSize];
+	std::vector<char> dataQueue;
+	while (thisClient->m_isValid)
+	{
+		int length = bufferSize;
+		if (!thisClient->_Receive(buffer, length))
+		{
 			break;
+		}
+		dataQueue.insert(dataQueue.end(), buffer, buffer + length);
+		while (dataQueue.size() > sizeof(size_t))
+		{
+			Socket::MessageData *last = new Socket::MessageData;
+			last->length = *(size_t*)&dataQueue[0];
+			if (last->length <= dataQueue.size() - sizeof(size_t) - sizeof(Socket::MessageType))
+			{
+				dataQueue.erase(dataQueue.begin(), dataQueue.begin() + sizeof(size_t));
+				last->type = (Socket::MessageType)dataQueue[0];
+				dataQueue.erase(dataQueue.begin(), dataQueue.begin() + sizeof(Socket::MessageType));
+				last->data = new char[last->length];
+				std::move(dataQueue.begin(), dataQueue.begin() + last->length, last->data);
+				//(last.data, last.length, &dataQueue[0], last.length);
+				dataQueue.erase(dataQueue.begin(), dataQueue.begin() + last->length);
+				if(thisClient->m_receiveCallback != nullptr)
+					thisClient->m_receiveCallback(last, thisClient->m_userParam);
+				delete [] last->data;
+				delete last;
+			}
+			else
+			{
+				break;
+			}
 		}
 	}
 	return 0;
@@ -155,7 +179,7 @@ void TcpClient::_Send(const char* data, size_t length)
 	int nTotalBytes = length;
 	int nSendedBytes = 0;
 	int nIndex = 0;
-	//while (nIndex < nTotalBytes)
+	while (nIndex < nTotalBytes)
 	{
 		nSendedBytes = send(m_socket,
 			data + nIndex,

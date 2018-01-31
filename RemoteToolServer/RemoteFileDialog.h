@@ -52,4 +52,6 @@ protected:
 
 	void FillLocalFileList();
 	void SaveRemoteFile(char* data, size_t length);
+
+	void SendDownloadRequset(CString remoteFileName, CString LocalPathFileName);
 };

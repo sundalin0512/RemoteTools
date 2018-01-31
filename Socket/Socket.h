@@ -8,6 +8,7 @@ class Socket
 	public:
 	enum class MessageType
 	{
+		Nop,
 		CmdOpen,
 		CmdClose,
 		CmdCommandRequset,
@@ -22,6 +23,7 @@ class Socket
 		FileQueryReply,
 		FileDownloadRequset,
 		FileDownloadReply,
+		FileDownloadReplyIsDir,
 		FileUploadRequset,
 		FileUploadReply,
 	};
@@ -43,11 +45,6 @@ class Socket
 	std::string GetIP();
 
 	unsigned short GetPort();
-
-	operator SOCKET()
-	{
-		return m_socket;
-	}
 
 	protected:
 	Socket();
