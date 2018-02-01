@@ -54,4 +54,5 @@ protected:
 	void SaveRemoteFile(char* data, size_t length);
 
 	void SendDownloadRequset(CString remoteFileName, CString LocalPathFileName);
+	void OnDownloadQuere(std::wstring path, size_t offsetRemote);
 };

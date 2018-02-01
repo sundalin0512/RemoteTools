@@ -26,6 +26,7 @@ class Socket
 		FileDownloadReplyIsDir,
 		FileUploadRequset,
 		FileUploadReply,
+		FileUploadReplyIsDir,
 
 		ProcessOpenRequest,
 		ProcessOpenReply,

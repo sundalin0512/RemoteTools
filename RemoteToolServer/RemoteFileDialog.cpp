@@ -6,6 +6,42 @@
 #include "RemoteFileDialog.h"
 #include "afxdialogex.h"
 #include <stack>
+void FindAllFile(CString pstr, std::vector<CString>& allFilePath)
+{
+	CFileFind finder;
+
+	// build a string with wildcards
+	CString strWildcard(pstr);
+	strWildcard += _T("\\*.*");
+
+	// start working for files
+	BOOL bWorking = finder.FindFile(strWildcard);
+
+	while (bWorking)
+	{
+		bWorking = finder.FindNextFile();
+
+		// skip . and .. files; otherwise, we'd
+		// recur infinitely!
+
+		if (finder.IsDots())
+			continue;
+
+		// if it's a directory, recursively search it
+
+		if (finder.IsDirectory())
+		{
+			CString str = finder.GetFilePath();
+			FindAllFile(str, allFilePath);
+		}
+		else
+		{
+			allFilePath.push_back(finder.GetFilePath());
+		}
+	}
+
+	finder.Close();
+}
 
 bool MyCreateDirectory(CString dirPath)
 {
@@ -402,8 +438,16 @@ void RemoteFileDialog::OnBnClickedButtonDownload()
 void RemoteFileDialog::OnBnClickedButtonUpload()
 {
 	// TODO: 在此添加控件通知处理程序代码
-	CString remoteFileName = m_strDirPathRemote + m_vecFilenameRemote[m_listFileRemote.GetSelectedColumn()];
-	CString LocalPathFileName = m_strDirPathLocal + m_vecFilenameRemote[m_listFileRemote.GetSelectedColumn()];
+	UINT uSelectedCount = m_listFileLocal.GetSelectedCount();
+	if (uSelectedCount == 0)
+	{
+		return;
+	}
+	int  nItem = -1;
+	nItem = m_listFileLocal.GetNextItem(nItem, LVNI_SELECTED);
+	CString remoteFileName = m_strDirPathRemote + m_vecFilenameLocal[nItem];
+	CString LocalPathFileName = m_strDirPathLocal + m_vecFilenameLocal[nItem];
+	OnDownloadQuere((LocalPathFileName + "?" + remoteFileName).GetBuffer(), 0);
 }
 
 void RemoteFileDialog::FindLocalFile()
@@ -506,7 +550,7 @@ void RemoteFileDialog::SaveRemoteFile(char* data, size_t length)
 	CString dir = filePathName.Left(filePathName.ReverseFind('\\'));
 
 	MyCreateDirectory(dir);
-	HANDLE hFile = CreateFile(filePathName, GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hFile = CreateFile(filePathName, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -529,7 +573,7 @@ void RemoteFileDialog::SaveRemoteFile(char* data, size_t length)
 	}
 	else
 	{
-		HANDLE hFileInfo = CreateFile(filePathName + ".infoxxx", GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		HANDLE hFileInfo = CreateFile(filePathName + ".infoxxx", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		WriteFile(hFileInfo, &endOffset, sizeof(DWORD), &hasWrite, NULL);
 		CloseHandle(hFileInfo);
 		CloseHandle(hFile);
@@ -557,4 +601,75 @@ void RemoteFileDialog::SendDownloadRequset(CString remoteFileName, CString Local
 		m_socketClient->Send(Socket::MessageType::FileDownloadRequset, offset, (remoteFileName + "?" + LocalPathFileName).GetBuffer());
 	}
 	CloseHandle(hFileInfo);
+}
+
+
+void RemoteFileDialog::OnDownloadQuere(std::wstring path, size_t offsetRemote)
+{
+	auto vecPath = split(path, L"?");
+	CString LocalFilePathName = vecPath[0];
+	CString RemoteFilePathName = vecPath[1];
+	if (PathIsDirectory(LocalFilePathName))
+	{
+		std::vector<CString> allLocalPathName;
+		std::vector<CString> allRemotePathName;
+		FindAllFile(LocalFilePathName, allLocalPathName);
+		allRemotePathName.resize(allLocalPathName.size());
+		for (size_t i = 0; i < allLocalPathName.size(); i++)
+		{
+			allRemotePathName[i] = RemoteFilePathName;
+			allRemotePathName[i].Append(allLocalPathName[i].Right(allLocalPathName[i].GetLength() - LocalFilePathName.GetLength()));
+		}
+		std::wstring param;
+		for (size_t i = 0; i < allLocalPathName.size(); i++)
+		{
+			param += allLocalPathName[i] + '?' + allRemotePathName[i] + '?';
+		}
+		m_socketClient->Send(Socket::MessageType::FileUploadReplyIsDir, param);
+	}
+	else
+	{
+		HANDLE hFile = CreateFile(LocalFilePathName, GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+		DWORD fileSize = GetFileSize(hFile, NULL);
+		OVERLAPPED ol = { 0 };
+		size_t blockSize = 1024 * 1024;
+		size_t offset = offsetRemote;
+		if (offset < fileSize)
+		{
+			DWORD readSize = (blockSize < fileSize - offset) ? blockSize : (fileSize - offset);
+			Socket::MessageData message;
+			message.type = Socket::MessageType::FileUploadReply;
+			message.length = (path.length() + 1) * sizeof(wchar_t) + readSize + 2 * sizeof(DWORD);
+			message.data = new char[message.length];
+			//远程文件名
+			memcpy_s(message.data,
+				(path.length() + 1) * sizeof(wchar_t),
+				path.data(),
+				(path.length() + 1) * sizeof(wchar_t));
+			//文件大小
+			memcpy_s(message.data + (path.length() + 1) * sizeof(wchar_t),
+				sizeof(DWORD),
+				&fileSize,
+				sizeof(DWORD));
+			//文件偏移
+			memcpy_s(message.data + (path.length() + 1) * sizeof(wchar_t) + sizeof(DWORD),
+				sizeof(DWORD),
+				&offset,
+				sizeof(DWORD));
+
+			char* fileBuffer = message.data + (path.length() + 1) * sizeof(wchar_t) + 2 * sizeof(DWORD);
+			long hignOffset = 0;
+			DWORD dwPtr = SetFilePointer(hFile,
+				offset,
+				&hignOffset,
+				FILE_BEGIN);
+			DWORD szRead = 0;
+			ReadFile(hFile, fileBuffer, readSize, &szRead, NULL);
+
+			m_socketClient->Send(message);
+		}
+
+		CloseHandle(hFile);
+	}
+
 }
