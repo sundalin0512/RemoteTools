@@ -510,7 +510,7 @@ void RemoteFileDialog::SaveRemoteFile(char* data, size_t length)
 	
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
-		MessageBox(L"文件已存在或路径无效");
+		MessageBox(L"文件无法访问");
 		return;
 	}
 	DWORD hasWrite;
@@ -525,15 +525,17 @@ void RemoteFileDialog::SaveRemoteFile(char* data, size_t length)
 	if(endOffset == fileLength)
 	{
 		DeleteFile(filePathName + ".infoxxx");
+		CloseHandle(hFile);
 	}
 	else
 	{
 		HANDLE hFileInfo = CreateFile(filePathName + ".infoxxx", GENERIC_WRITE, 0, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		WriteFile(hFileInfo, &endOffset, sizeof(DWORD), &hasWrite, NULL);
 		CloseHandle(hFileInfo);
+		CloseHandle(hFile);
 		m_socketClient->Send(Socket::MessageType::FileDownloadRequset, endOffset, (remotePathName + "?" + filePathName).GetBuffer());
 	}
-	CloseHandle(hFile);
+	
 	
 	//MessageBox(L"文件传输完毕", 0, MB_OK);
 }
@@ -541,8 +543,8 @@ void RemoteFileDialog::SaveRemoteFile(char* data, size_t length)
 void RemoteFileDialog::SendDownloadRequset(CString remoteFileName, CString LocalPathFileName)
 {
 	HANDLE hFileInfo = CreateFile(LocalPathFileName + ".infoxxx", GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	HANDLE hFile = CreateFile(LocalPathFileName, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	if(hFileInfo == INVALID_HANDLE_VALUE && hFile == INVALID_HANDLE_VALUE)
+
+	if(hFileInfo == INVALID_HANDLE_VALUE && PathFileExists(LocalPathFileName))
 	{
 
 		m_socketClient->Send(Socket::MessageType::FileDownloadRequset, 0,(remoteFileName + "?" + LocalPathFileName).GetBuffer());
@@ -554,6 +556,5 @@ void RemoteFileDialog::SendDownloadRequset(CString remoteFileName, CString Local
 		ReadFile(hFileInfo, &offset, sizeof(DWORD), &readNums, NULL);
 		m_socketClient->Send(Socket::MessageType::FileDownloadRequset, offset, (remoteFileName + "?" + LocalPathFileName).GetBuffer());
 	}
-	CloseHandle(hFile);
 	CloseHandle(hFileInfo);
 }

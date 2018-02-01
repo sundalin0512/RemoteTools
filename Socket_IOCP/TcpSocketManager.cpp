@@ -70,7 +70,7 @@ bool TcpSocketManager::StartServer(int port)
 		g_ThreadHandles[dwCPU] = hThread;
 		hThread = INVALID_HANDLE_VALUE;
 	}
-	
+
 	return true;
 }
 
@@ -167,17 +167,17 @@ BOOL TcpSocketManager::CreateAcceptSocket(BOOL fUpdateIOCP)
 		return false;
 	}
 
-	g_tcpServer->pIOContext->tcpClient->RecvBuffer = new char[8+ (2 * (sizeof(SOCKADDR_STORAGE) + 16))];
-	g_tcpServer->pIOContext->tcpClient->RecvBufferSize = 8+ (2 * (sizeof(SOCKADDR_STORAGE) + 16));
+	g_tcpServer->pIOContext->tcpClient->RecvBuffer = new char[8 + (2 * (sizeof(SOCKADDR_STORAGE) + 16))];
+	g_tcpServer->pIOContext->tcpClient->RecvBufferSize = 8 + (2 * (sizeof(SOCKADDR_STORAGE) + 16));
 	//
 	// pay close attention to these parameters and buffer lengths
 	//
 	nRet = g_tcpServer->fnAcceptEx(g_tcpServer->m_socket, g_tcpServer->pIOContext->tcpClient->m_socket,
-	                                       (LPVOID)(g_tcpServer->pIOContext->tcpClient->RecvBuffer),
-	                                       8,
-	                                       sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
-	                                       &dwRecvNumBytes,
-	                                       (LPOVERLAPPED)&(g_tcpServer->pIOContext->Overlapped));
+		(LPVOID)(g_tcpServer->pIOContext->tcpClient->RecvBuffer),
+		8,
+		sizeof(SOCKADDR_STORAGE) + 16, sizeof(SOCKADDR_STORAGE) + 16,
+		&dwRecvNumBytes,
+		(LPOVERLAPPED)&(g_tcpServer->pIOContext->Overlapped));
 	if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError()))
 	{
 		return false;
@@ -212,6 +212,7 @@ DWORD TcpSocketManager::WorkerThread(LPVOID WorkThreadContext)
 		if (!bSuccess)
 		{
 			printf("GetQueuedCompletionStatus() failed: %d\n", GetLastError());
+
 		}
 
 		if (g_bEndServer)
@@ -229,7 +230,7 @@ DWORD TcpSocketManager::WorkerThread(LPVOID WorkThreadContext)
 				// client connection dropped, continue to service remaining (and possibly 
 				// new) client connections
 				//
-				pSock->Close();
+				CloseClient(((TcpServer*)pSock), FALSE);
 				continue;
 			}
 		}
@@ -237,100 +238,120 @@ DWORD TcpSocketManager::WorkerThread(LPVOID WorkThreadContext)
 		switch (lpIOContext->IOOperation)
 		{
 		case IO_OPERATION::ClientIoAccept:
+		{
+			tcpClient->g_hIOCP = g_hIOCP;
+			nRet = setsockopt(
+				tcpClient->m_socket,
+				SOL_SOCKET,
+				SO_UPDATE_ACCEPT_CONTEXT,
+				(char *)&g_tcpServer->m_socket,
+				sizeof(g_tcpServer->m_socket)
+			);
+			if (nRet == SOCKET_ERROR)
 			{
-				tcpClient->g_hIOCP = g_hIOCP;
-				nRet = setsockopt(
-					tcpClient->m_socket,
-					SOL_SOCKET,
-					SO_UPDATE_ACCEPT_CONTEXT,
-					(char *)&g_tcpServer->m_socket,
-					sizeof(g_tcpServer->m_socket)
-				);
-				if (nRet == SOCKET_ERROR)
-				{
-					printf("setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed to update accept socket\n");
-					return (0);
-				}
-
-				g_hIOCP = CreateIoCompletionPort((HANDLE)tcpClient->m_socket, g_hIOCP, (DWORD_PTR)tcpClient, 0);
-				if (g_hIOCP == NULL)
-				{
-					printf("CreateIoCompletionPort() failed: %d\n", GetLastError());
-					return (NULL);
-				}
-				if (dwIoSize)
-				{
-					tcpClient->pRecvIOContext->IOOperation = IO_OPERATION::ClientIoRead;
-					tcpClient->nTotalBytes = dwIoSize;
-					tcpClient->nSentBytes = 0;
-					tcpClient->RecvWsabuf.len = MAX_BUFF_SIZE;
-					tcpClient->RecvBuffer = new char[MAX_BUFF_SIZE];
-					tcpClient->RecvBufferSize = MAX_BUFF_SIZE;
-					hRet = StringCbCopyNA(tcpClient->RecvBuffer,
-					                      MAX_BUFF_SIZE,
-					                      tcpClient->RecvBuffer,
-										  MAX_BUFF_SIZE
-					);
-					tcpClient->RecvWsabuf.buf = tcpClient->RecvBuffer;
-					dwFlags = 0;
-					nRet = WSARecv(
-						tcpClient->m_socket,
-						&tcpClient->RecvWsabuf, 1,
-						&dwSendNumBytes,
-						&dwFlags,
-						(WSAOVERLAPPED*)&(tcpClient->pRecvIOContext->Overlapped), NULL);
-
-					if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError()))
-					{
-
-						printf("WSASend() failed: %d\n", WSAGetLastError());
-						CloseClient(((TcpServer*)pSock), FALSE);
-					}
-				}
-				g_tcpServer->Accept(tcpClient);
-				if (!CreateAcceptSocket(FALSE))
-				{
-					printf("Please shut down and reboot the server.\n");
-					return (0);
-				}
+				printf("setsockopt(SO_UPDATE_ACCEPT_CONTEXT) failed to update accept socket\n");
+				return (0);
 			}
-			break;
-		case IO_OPERATION::ClientIoRead:
+
+			g_hIOCP = CreateIoCompletionPort((HANDLE)tcpClient->m_socket, g_hIOCP, (DWORD_PTR)tcpClient, 0);
+			if (g_hIOCP == NULL)
 			{
-				tcpClient->Received(tcpClient->RecvWsabuf.buf, dwIoSize);
-				//if (tcpClient->RecvBuffer != nullptr)
-				//{
-				//	delete tcpClient->RecvBuffer;
-				//	tcpClient->RecvBuffer = nullptr;
-				//	tcpClient->RecvBufferSize = 0;
-				//}
-				//tcpClient->RecvBuffer = new char[MAX_BUFF_SIZE];
-				//tcpClient->RecvBufferSize = MAX_BUFF_SIZE;
+				printf("CreateIoCompletionPort() failed: %d\n", GetLastError());
+				return (NULL);
+			}
+			if (dwIoSize)
+			{
 				tcpClient->pRecvIOContext->IOOperation = IO_OPERATION::ClientIoRead;
-				dwRecvNumBytes = 0;
+				tcpClient->nTotalBytes = dwIoSize;
+				tcpClient->nSentBytes = 0;
+				tcpClient->RecvWsabuf.len = MAX_BUFF_SIZE;
+				tcpClient->RecvBuffer = new char[MAX_BUFF_SIZE];
+				tcpClient->RecvBufferSize = MAX_BUFF_SIZE;
+				hRet = StringCbCopyNA(tcpClient->RecvBuffer,
+					MAX_BUFF_SIZE,
+					tcpClient->RecvBuffer,
+					MAX_BUFF_SIZE
+				);
+				tcpClient->RecvWsabuf.buf = tcpClient->RecvBuffer;
 				dwFlags = 0;
-				tcpClient->RecvWsabuf.buf = tcpClient->RecvBuffer,
-					tcpClient->RecvWsabuf.len = tcpClient->RecvBufferSize;
 				nRet = WSARecv(
 					tcpClient->m_socket,
-					&tcpClient->RecvWsabuf, 1, &dwRecvNumBytes,
+					&tcpClient->RecvWsabuf, 1,
+					&dwSendNumBytes,
 					&dwFlags,
 					(WSAOVERLAPPED*)&(tcpClient->pRecvIOContext->Overlapped), NULL);
+
 				if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError()))
 				{
+
+					printf("WSASend() failed: %d\n", WSAGetLastError());
+					CloseClient(((TcpServer*)pSock), FALSE);
+				}
+			}
+			g_tcpServer->Accept(tcpClient);
+			if (!CreateAcceptSocket(FALSE))
+			{
+				printf("Please shut down and reboot the server.\n");
+				return (0);
+			}
+		}
+		break;
+		case IO_OPERATION::ClientIoRead:
+		{
+			tcpClient->pRecvIOContext->IOOperation = IO_OPERATION::ClientIoRead;
+			tcpClient->Received(tcpClient->RecvWsabuf.buf, dwIoSize);
+			//if (tcpClient->RecvBuffer != nullptr)
+			//{
+			//	delete tcpClient->RecvBuffer;
+			//	tcpClient->RecvBuffer = nullptr;
+			//	tcpClient->RecvBufferSize = 0;
+			//}
+			//tcpClient->RecvBuffer = new char[MAX_BUFF_SIZE];
+			//tcpClient->RecvBufferSize = MAX_BUFF_SIZE;
+
+			dwRecvNumBytes = 0;
+			dwFlags = 0;
+			tcpClient->RecvWsabuf.buf = tcpClient->RecvBuffer,
+				tcpClient->RecvWsabuf.len = tcpClient->RecvBufferSize;
+			nRet = WSARecv(
+				tcpClient->m_socket,
+				&tcpClient->RecvWsabuf, 1, &dwRecvNumBytes,
+				&dwFlags,
+				(WSAOVERLAPPED*)&(tcpClient->pRecvIOContext->Overlapped), NULL);
+			if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError()))
+			{
+				CloseClient(tcpClient, FALSE);
+			}
+		}
+		break;
+		case IO_OPERATION::ClientIoWrite:
+		{
+			tcpClient->pSendIOContext->IOOperation = IO_OPERATION::ClientIoWrite;
+			tcpClient->nSentBytes += dwIoSize;
+			dwFlags = 0;
+			if (tcpClient->nSentBytes < tcpClient->nTotalBytes)
+			{
+				tcpClient->SendWsabuf.buf = tcpClient->SendBuffer + tcpClient->nSentBytes;
+				tcpClient->SendWsabuf.len = tcpClient->nTotalBytes - tcpClient->nSentBytes;
+				nRet = WSASend(
+					tcpClient->m_socket,
+					&tcpClient->SendWsabuf, 1, &dwSendNumBytes,
+					dwFlags,
+					(WSAOVERLAPPED*)&(tcpClient->pSendIOContext->Overlapped), NULL);
+				if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError()))
+				{
+					printf("WSASend() failed: %d\n", WSAGetLastError());
 					CloseClient(tcpClient, FALSE);
 				}
 			}
-			break;
-		case IO_OPERATION::ClientIoWrite:
+			else
 			{
-				tcpClient->pSendIOContext->IOOperation = IO_OPERATION::ClientIoWrite;
-				tcpClient->nSentBytes += dwIoSize;
-				dwFlags = 0;
-				if (tcpClient->nSentBytes < tcpClient->nTotalBytes)
+				if (tcpClient->ToSend(tcpClient->SendBuffer, tcpClient->SendBufferSize))
 				{
-					tcpClient->SendWsabuf.buf = tcpClient->SendBuffer + tcpClient->nSentBytes;
-					tcpClient->SendWsabuf.len = tcpClient->nTotalBytes - tcpClient->nSentBytes;
+					tcpClient->nSentBytes = 0;
+					tcpClient->nTotalBytes = tcpClient->SendBufferSize;
+					tcpClient->SendWsabuf.buf = tcpClient->SendBuffer;
+					tcpClient->SendWsabuf.len = tcpClient->SendBufferSize;
 					nRet = WSASend(
 						tcpClient->m_socket,
 						&tcpClient->SendWsabuf, 1, &dwSendNumBytes,
@@ -342,35 +363,16 @@ DWORD TcpSocketManager::WorkerThread(LPVOID WorkThreadContext)
 						CloseClient(tcpClient, FALSE);
 					}
 				}
-				else
-				{
-					if (tcpClient->ToSend(tcpClient->SendBuffer, tcpClient->SendBufferSize))
-					{
-						tcpClient->nSentBytes = 0;
-						tcpClient->nTotalBytes = tcpClient->SendBufferSize;
-						tcpClient->SendWsabuf.buf = tcpClient->SendBuffer;
-						tcpClient->SendWsabuf.len = tcpClient->SendBufferSize;
-						nRet = WSASend(
-							tcpClient->m_socket,
-							&tcpClient->SendWsabuf, 1, &dwSendNumBytes,
-							dwFlags,
-							(WSAOVERLAPPED*)&(tcpClient->pSendIOContext->Overlapped), NULL);
-						if (nRet == SOCKET_ERROR && (ERROR_IO_PENDING != WSAGetLastError()))
-						{
-							printf("WSASend() failed: %d\n", WSAGetLastError());
-							CloseClient(tcpClient, FALSE);
-						}
-					}
-				}
 			}
-			break;
+		}
+		break;
 		}
 	}
 }
 
 void TcpSocketManager::CloseClient(Socket* lpPerSocketContext, BOOL bGraceful)
 {
-
+	((TcpClient*)lpPerSocketContext)->Received(nullptr, 0);
 	if (lpPerSocketContext)
 	{
 		if (!bGraceful)
@@ -383,7 +385,7 @@ void TcpSocketManager::CloseClient(Socket* lpPerSocketContext, BOOL bGraceful)
 			lingerStruct.l_onoff = 1;
 			lingerStruct.l_linger = 0;
 			setsockopt(lpPerSocketContext->m_socket, SOL_SOCKET, SO_LINGER,
-			           (char *)&lingerStruct, sizeof(lingerStruct));
+				(char *)&lingerStruct, sizeof(lingerStruct));
 		}
 		if (lpPerSocketContext->m_socket != INVALID_SOCKET)
 		{

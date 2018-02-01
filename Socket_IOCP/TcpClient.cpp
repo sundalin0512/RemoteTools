@@ -2,6 +2,7 @@
 #include "TcpClient.h"
 #include <cassert>
 #include "TcpSocketManager.h"
+#include "zlib.h"
 
 TcpClient::TcpClient(SOCKET sock) : Socket(sock)
 {
@@ -36,7 +37,40 @@ TcpClient::~TcpClient()
 
 void TcpClient::Send(MessageData message)
 {
+	//在这压缩
+	if(message.length)
+	{
+		//压缩原始数据
+
+		int dwZibSize = compressBound(message.length);
+
+		//分配缓冲区空间
+		char* pZibBuf = new char[dwZibSize + sizeof(size_t)];
+
+		//int compress (Bytef * dest , uLongf * destLen, constt Bytef * source , uLongf sourceLen)
+
+
+		DWORD dwdestLen = dwZibSize;
+		//开始压缩
+		int nRet = compress((Bytef *)pZibBuf + sizeof(size_t),
+			(uLongf *)&dwdestLen,
+			(const unsigned char *)message.data,
+			(uLongf)message.length);
+
+		if (nRet == Z_OK)
+		{
+			*(size_t*)pZibBuf = message.length;
+			message.length = dwdestLen + sizeof(size_t);
+			delete message.data;
+			message.data = pZibBuf;
+		}
+		else
+		{
+			throw "";
+		}
+	}
 	EnterCriticalSection(&m_csSendQueue);
+
 	m_sendQueue.push(message);
 	if (!hasNextSend)
 	{
@@ -143,6 +177,11 @@ bool TcpClient::ToSend(char*& buffer, size_t & length)
 
 DWORD TcpClient::Received(CHAR* buf, DWORD length)
 {
+	if(buf == nullptr && length ==0)
+	{
+		if (this->m_receiveCallback != nullptr)
+			this->m_receiveCallback(nullptr, this->m_userParam);
+	}
 	EnterCriticalSection(&m_csReceiveQueue);
 	m_recvDataQueue.insert(m_recvDataQueue.end(), buf, buf + length);
 	while (m_recvDataQueue.size() > sizeof(size_t))
@@ -158,6 +197,49 @@ DWORD TcpClient::Received(CHAR* buf, DWORD length)
 			std::move(m_recvDataQueue.begin(), m_recvDataQueue.begin() + last->length, last->data);
 			//(last.data, last.length, &dataQueue[0], last.length);
 			m_recvDataQueue.erase(m_recvDataQueue.begin(), m_recvDataQueue.begin() + last->length);
+			//在这解压
+			if (last->length)
+			{
+				//解压数据
+
+				DWORD dwSrcSize =last->length;
+				DWORD dwZibSize = 0;
+
+				char* pZibBuf = last->data + sizeof(size_t);
+				//创建用于解压的缓冲区
+				
+				DWORD dwSrcBufSize = *(size_t*)last->data;
+				char* pSrcBuf = new char[dwSrcBufSize]; //为了原始数据分配足够大的缓冲区
+				if (pSrcBuf == NULL)
+				{
+					return FALSE;
+				}
+
+				//开始解压缩
+				//   int uncompress(Bytef *dest, uLongf *destLen,const Bytef *source, uLongf sourceLen)
+				//     
+				//   zlib的解压缩函数，将source处sourceLen个字节解压缩，放到大小为destLend的dest缓冲区中，将最终的长度放到destLen指向的地址中。
+				//     
+				//   所以调用前需赋值destLen
+
+				//开始解压缩
+				int nRet = uncompress((Bytef *)pSrcBuf,
+					(uLongf *)&dwSrcBufSize, //填写解压缩缓冲区大小
+					(const unsigned char *)pZibBuf,
+					(uLongf)dwSrcSize - sizeof(size_t));
+
+				if (nRet == Z_OK)
+				{
+					last->length = dwSrcBufSize;
+					delete last->data;
+					last->data = pSrcBuf;
+
+				}
+				else
+				{
+					throw "";
+				}
+			}
 			if (this->m_receiveCallback != nullptr)
 				this->m_receiveCallback(last, this->m_userParam);
 			delete[] last->data;

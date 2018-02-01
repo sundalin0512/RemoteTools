@@ -24,4 +24,10 @@ protected:
 	public:
 	CListCtrl m_listProcess;
 	virtual BOOL OnInitDialog();
+	TcpClient* m_socketClient;
+	BOOL UpdateListCtrl(std::wstring data);
+
+	afx_msg void OnRclickListProcess(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnTerminateProcess();
+	CString selectPID;
 };

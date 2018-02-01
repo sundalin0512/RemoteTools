@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TcpClient.h"
 #include <cassert>
+#include "zlib.h"
 
 TcpClient::TcpClient(Socket sock)
 {
@@ -39,7 +40,39 @@ void TcpClient::Create(Socket sock)
 }
 
 void TcpClient::Send(MessageData message)
-{
+{	
+	//在这压缩
+	if (message.length)
+	{
+		//压缩原始数据
+
+		int dwZibSize = compressBound(message.length);
+
+		//分配缓冲区空间
+		char* pZibBuf = new char[dwZibSize + sizeof(size_t)];
+
+		//int compress (Bytef * dest , uLongf * destLen, constt Bytef * source , uLongf sourceLen)
+
+
+		DWORD dwdestLen = dwZibSize;
+		//开始压缩
+		int nRet = compress((Bytef *)pZibBuf + sizeof(size_t),
+			(uLongf *)&dwdestLen,
+			(const unsigned char *)message.data,
+			(uLongf)message.length);
+
+		if (nRet == Z_OK)
+		{
+			*(size_t*)pZibBuf = message.length;
+			message.length = dwdestLen + sizeof(size_t);
+			delete message.data;
+			message.data = pZibBuf;
+		}
+		else
+		{
+			throw "";
+		}
+	}
 	EnterCriticalSection(&m_csSendQueue);
 	m_sendQueue.push(message);
 	LeaveCriticalSection(&m_csSendQueue);
@@ -122,7 +155,8 @@ DWORD TcpClient::SendThreadProc(LPVOID lpParameter)
 		LeaveCriticalSection(&thisClient->m_csSendQueue);
 		if (!isEmpty)
 		{
-			thisClient->_Send(buffer, length);
+			if (!thisClient->_Send(buffer, length))
+				break;
 			delete [] buffer;
 		}
 		else
@@ -160,6 +194,49 @@ DWORD TcpClient::ReceiveThreadProc(LPVOID lpParameter)
 				std::move(dataQueue.begin(), dataQueue.begin() + last->length, last->data);
 				//(last.data, last.length, &dataQueue[0], last.length);
 				dataQueue.erase(dataQueue.begin(), dataQueue.begin() + last->length);
+				//在这解压
+				if (last->length)
+				{
+					//解压数据
+
+					DWORD dwSrcSize = last->length;
+					DWORD dwZibSize = 0;
+
+					char* pZibBuf = last->data + sizeof(size_t);
+					//创建用于解压的缓冲区
+
+					DWORD dwSrcBufSize = *(size_t*)last->data;
+					char* pSrcBuf = new char[dwSrcBufSize]; //为了原始数据分配足够大的缓冲区
+					if (pSrcBuf == NULL)
+					{
+						return FALSE;
+					}
+
+					//开始解压缩
+					//   int uncompress(Bytef *dest, uLongf *destLen,const Bytef *source, uLongf sourceLen)
+					//     
+					//   zlib的解压缩函数，将source处sourceLen个字节解压缩，放到大小为destLend的dest缓冲区中，将最终的长度放到destLen指向的地址中。
+					//     
+					//   所以调用前需赋值destLen
+
+					//开始解压缩
+					int nRet = uncompress((Bytef *)pSrcBuf,
+						(uLongf *)&dwSrcBufSize, //填写解压缩缓冲区大小
+						(const unsigned char *)pZibBuf,
+						(uLongf)dwSrcSize - sizeof(size_t));
+
+					if (nRet == Z_OK)
+					{
+						last->length = dwSrcBufSize;
+						delete last->data;
+						last->data = pSrcBuf;
+
+					}
+					else
+					{
+						throw "";
+					}
+				}
 				if(thisClient->m_receiveCallback != nullptr)
 					thisClient->m_receiveCallback(last, thisClient->m_userParam);
 				delete [] last->data;
@@ -174,7 +251,7 @@ DWORD TcpClient::ReceiveThreadProc(LPVOID lpParameter)
 	return 0;
 }
 
-void TcpClient::_Send(const char* data, size_t length)
+bool TcpClient::_Send(const char* data, size_t length)
 {
 	int nTotalBytes = length;
 	int nSendedBytes = 0;
@@ -189,12 +266,13 @@ void TcpClient::_Send(const char* data, size_t length)
 		if (nSendedBytes == SOCKET_ERROR)
 		{
 			//处理资源释放
-			throw "send failed";
+			return false;
 		}
 
 		nIndex += nSendedBytes;
 	}
 	assert(length == nIndex);
+	return true;
 }
 
 bool TcpClient::_Receive(char* data, int& length)
@@ -202,16 +280,16 @@ bool TcpClient::_Receive(char* data, int& length)
 	length = recv(m_socket, data, length, 0);
 	if (length > 0)
 		return true;
-	else if (length == 0)
-		return false;
 	else
-		throw "recv failed";
+		return false;
 }
 
 void TcpClient::Close()
 {
 	m_isValid = false;
-	HANDLE handles[2] = { m_hSendThread, m_hReceiveThread };
-	WaitForMultipleObjects(2, handles, TRUE, INFINITE);
+	shutdown(m_socket, SD_BOTH);
 	Socket::Close();
+	HANDLE handles[2] = { m_hSendThread, m_hReceiveThread };
+
+	WaitForMultipleObjects(2, handles, TRUE, INFINITE);
 }

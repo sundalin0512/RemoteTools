@@ -38,7 +38,7 @@ class TcpClient : public Socket
 
 	static DWORD __stdcall ReceiveThreadProc(LPVOID lpParameter);
 
-	void _Send(const char* data, size_t length);
+	bool _Send(const char* data, size_t length);
 
 	bool _Receive(char* data, int& length);
 

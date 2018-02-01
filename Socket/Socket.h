@@ -26,6 +26,16 @@ class Socket
 		FileDownloadReplyIsDir,
 		FileUploadRequset,
 		FileUploadReply,
+
+		ProcessOpenRequest,
+		ProcessOpenReply,
+		ProcessTerminateRequest,
+		ProcessTerminateReply,
+		ProcessCloseRequest,
+		ProcessCloseReply,
+
+		HeartBeatRequset,
+		HeartBeatReply,
 	};
 
 #pragma pack(push)
