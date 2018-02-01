@@ -189,14 +189,17 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="FileProcess.h" />
+    <ClInclude Include="ITask.h" />
     <ClInclude Include="RemoteToolClient.h" />
     <ClInclude Include="RemoteToolClientDlg.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="ThreadPool.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FileProcess.cpp" />
+    <ClCompile Include="ITask.cpp" />
     <ClCompile Include="RemoteToolClient.cpp" />
     <ClCompile Include="RemoteToolClientDlg.cpp" />
     <ClCompile Include="stdafx.cpp">
@@ -205,6 +208,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="ThreadPool.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="RemoteToolClient.rc" />

@@ -550,7 +550,7 @@ void RemoteFileDialog::SaveRemoteFile(char* data, size_t length)
 	CString dir = filePathName.Left(filePathName.ReverseFind('\\'));
 
 	MyCreateDirectory(dir);
-	HANDLE hFile = CreateFile(filePathName, GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hFile = CreateFile(filePathName, GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 	
 	if (hFile == INVALID_HANDLE_VALUE)
 	{
@@ -573,7 +573,7 @@ void RemoteFileDialog::SaveRemoteFile(char* data, size_t length)
 	}
 	else
 	{
-		HANDLE hFileInfo = CreateFile(filePathName + ".infoxxx", GENERIC_WRITE, FILE_SHARE_WRITE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+		HANDLE hFileInfo = CreateFile(filePathName + ".infoxxx", GENERIC_READ | GENERIC_WRITE, FILE_SHARE_WRITE | FILE_SHARE_READ | FILE_SHARE_DELETE, NULL, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 		WriteFile(hFileInfo, &endOffset, sizeof(DWORD), &hasWrite, NULL);
 		CloseHandle(hFileInfo);
 		CloseHandle(hFile);
